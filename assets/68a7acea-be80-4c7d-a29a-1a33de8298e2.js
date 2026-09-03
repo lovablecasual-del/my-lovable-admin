@@ -201,6 +201,81 @@ function TileCropper({ tile, index, onApply, onClose }) {
   );
 }
 
+/* ---------- LOGO CROPPER ---------- */
+const LOGO_RATIOS = [
+  { key: "1:1", label: "正方形（アイコンのみ）", w: 1, h: 1 },
+  { key: "2:1", label: "横長（標準）", w: 2, h: 1 },
+  { key: "3:1", label: "横長（ワイド）", w: 3, h: 1 },
+  { key: "4:1", label: "横長（バナー）", w: 4, h: 1 },
+];
+
+function flattenLogoImage(img, ratio, x, y, z, outH) {
+  outH = outH || 168;
+  const ch = outH, cw = Math.round(outH * (ratio.w / ratio.h));
+  const c = document.createElement("canvas"); c.width = cw; c.height = ch;
+  const ctx = c.getContext("2d");
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const s0 = Math.max(cw / iw, ch / ih);
+  const dw0 = iw * s0, dh0 = ih * s0;
+  const ox0 = (cw - dw0) * (x / 100), oy0 = (ch - dh0) * (y / 100);
+  const cx = cw / 2, cy = ch / 2;
+  const dw = dw0 * z, dh = dh0 * z;
+  const dx = cx + (ox0 - cx) * z, dy = cy + (oy0 - cy) * z;
+  ctx.clearRect(0, 0, cw, ch);
+  ctx.drawImage(img, dx, dy, dw, dh);
+  return c.toDataURL("image/png");
+}
+
+function LogoCropper({ src, initialRatio, onApply, onClose }) {
+  const [ratioKey, setRatioKey] = useState(initialRatio || "2:1");
+  const ratio = LOGO_RATIOS.find(r => r.key === ratioKey) || LOGO_RATIOS[1];
+  const [v, setV] = useState({ x: 50, y: 50, z: 1 });
+  const drag = useRef(null);
+  const start = (e) => { drag.current = { px: e.clientX, py: e.clientY, x: v.x, y: v.y, w: e.currentTarget.clientWidth }; e.currentTarget.setPointerCapture(e.pointerId); };
+  const move = (e) => {
+    const d = drag.current; if (!d) return;
+    const k = 100 / Math.max(1, d.w);
+    setV(s => ({ ...s, x: Math.min(100, Math.max(0, d.x - (e.clientX - d.px) * k)), y: Math.min(100, Math.max(0, d.y - (e.clientY - d.py) * k)) }));
+  };
+  const end = () => { drag.current = null; };
+  const apply = () => {
+    const img = new Image();
+    img.onload = () => { const out = flattenLogoImage(img, ratio, v.x, v.y, v.z); onApply(out); onClose(); };
+    img.onerror = () => { ctoast("画像の読み込みに失敗しました"); };
+    img.src = src;
+  };
+  return (
+    <div className="scrim" style={{display:"grid",placeItems:"center",zIndex:80}} onClick={onClose}>
+      <div className="card" style={{width:"min(440px,92vw)",maxHeight:"90vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+        <h3>ロゴをトリミング</h3>
+        <div className="hint" style={{marginBottom:12}}>ドラッグして位置を、スライダーで拡大率を調整します。縦横比を選んで切り抜きエリアに合わせます（背景の透過は保持されます）。</div>
+        <label className="fld"><span>縦横比</span>
+          <select className="in" value={ratioKey} onChange={e=>setRatioKey(e.target.value)} style={{width:"100%"}}>
+            {LOGO_RATIOS.map(r=><option key={r.key} value={r.key}>{r.label}</option>)}
+          </select>
+        </label>
+        <div style={{width:"100%",aspectRatio:ratio.w+"/"+ratio.h,overflow:"hidden",borderRadius:"var(--a-r-md,10px)",background:"repeating-conic-gradient(#ddd 0% 25%, #eee 0% 50%) 50%/16px 16px",cursor:"grab",touchAction:"none",margin:"10px 0 16px"}}
+          onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+          <img src={src} alt="" draggable="false" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:v.x+"% "+v.y+"%",transform:"scale("+v.z+")",pointerEvents:"none"}} />
+        </div>
+        <label className="fld"><span>拡大率 <em>（{v.z.toFixed(2)}倍）</em></span>
+          <input type="range" min="1" max="3" step="0.05" value={v.z} onChange={e=>setV(s=>({...s,z:Number(e.target.value)}))} style={{width:"100%"}} /></label>
+        <div className="row2">
+          <label className="fld"><span>左右の位置 <em>（{Math.round(v.x)}%）</em></span>
+            <input type="range" min="0" max="100" value={v.x} onChange={e=>setV(s=>({...s,x:Number(e.target.value)}))} style={{width:"100%"}} /></label>
+          <label className="fld"><span>上下の位置 <em>（{Math.round(v.y)}%）</em></span>
+            <input type="range" min="0" max="100" value={v.y} onChange={e=>setV(s=>({...s,y:Number(e.target.value)}))} style={{width:"100%"}} /></label>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button className="b b--p" onClick={apply}>この範囲で決定</button>
+          <button className="b b--g" onClick={()=>setV({x:50,y:50,z:1})}>リセット</button>
+          <button className="b b--g" onClick={onClose}>キャンセル</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- TOP PAGE MANAGER ---------- */
 const TOP_TEXT_KEYS = [
   "top.ranking.title", "top.ranking.eyebrow",
@@ -370,7 +445,8 @@ function Settings({ onLogout }) {
   const importRef=useRef();
   const logoRef=useRef();
   const [logo,setLogo]=useState(()=>({logo:site.logo||null,logoText:site.logoText||"",logoHeight:Number(site.logoHeight)||34}));
-  const pickLogo=(files)=>{ const file=[...files].find(f=>f.type.startsWith("image/")); if(!file)return; const r=new FileReader(); r.onload=()=>window.compress(r.result,(c)=>setLogo(s=>({...s,logo:c})),800); r.readAsDataURL(file); };
+  const [logoCropSrc,setLogoCropSrc]=useState(null);
+  const pickLogo=(files)=>{ const file=[...files].find(f=>f.type.startsWith("image/")); if(!file)return; const r=new FileReader(); r.onload=()=>setLogoCropSrc(r.result); r.readAsDataURL(file); };
   const saveLogo=()=>{ CS.saveSite({logo:logo.logo,logoText:logo.logoText,logoHeight:logo.logoHeight}); ctoast("ロゴを保存しました"); };
 
   const saveSeo=()=>{ CS.saveSite({seo}); ctoast("SEO設定を保存しました"); };
@@ -383,14 +459,16 @@ function Settings({ onLogout }) {
       <div className="card" style={{marginBottom:18}}>
         <h3>ロゴ</h3>
         <div className="hint" style={{marginBottom:14}}>ヘッダーとフッターに表示されるロゴです。画像を登録すると文字のロゴの代わりに使われます（背景透過のPNG / SVG推奨）。</div>
-        <div className="img-cell" style={{aspectRatio:"auto",width:"100%",maxWidth:360,height:96,marginBottom:10,cursor:"pointer",display:"grid",placeItems:"center",padding:12}} onClick={()=>logoRef.current.click()}>
-          {logo.logo ? <img src={logo.logo} alt="" style={{maxHeight:"100%",maxWidth:"100%",width:"auto",height:"auto",objectFit:"contain"}} /> : <span style={{color:"var(--a-muted)",fontSize:13}}>クリックしてロゴ画像を選択</span>}
+        <div className="img-cell" style={{aspectRatio:"auto",width:"100%",maxWidth:360,height:96,marginBottom:10,cursor:"pointer",display:"grid",placeItems:"center",padding:12,background:logo.logo?"repeating-conic-gradient(#f1f1f1 0% 25%, #fafafa 0% 50%) 50%/16px 16px":undefined}} onClick={()=>logoRef.current.click()}>
+          {logo.logo ? <img src={logo.logo} alt="" style={{height:Math.min(logo.logoHeight,72)+"px",width:"auto",maxWidth:"100%",objectFit:"contain",display:"block"}} /> : <span style={{color:"var(--a-muted)",fontSize:13}}>クリックしてロゴ画像を選択</span>}
         </div>
-        <input ref={logoRef} type="file" accept="image/*" hidden onChange={e=>pickLogo(e.target.files)} />
+        <input ref={logoRef} type="file" accept="image/*" hidden onChange={e=>{pickLogo(e.target.files); e.target.value="";}} />
         <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:14}}>
           <button className="b b--g b--sm" onClick={()=>logoRef.current.click()}>画像をアップロード</button>
+          {logo.logo && <button className="b b--g b--sm" onClick={()=>setLogoCropSrc(logo.logo)}>切り抜き・サイズを編集</button>}
           {logo.logo && <button className="b b--g b--sm" onClick={()=>setLogo(s=>({...s,logo:null}))}>画像を削除（文字ロゴに戻す）</button>}
         </div>
+        {logoCropSrc && <LogoCropper src={logoCropSrc} onApply={(out)=>setLogo(s=>({...s,logo:out}))} onClose={()=>setLogoCropSrc(null)} />}
         <div className="row2">
           <label className="fld"><span>ロゴの高さ <em>（{logo.logoHeight}px）</em></span>
             <input type="range" min="20" max="72" step="2" value={logo.logoHeight} onChange={e=>setLogo(s=>({...s,logoHeight:Number(e.target.value)}))} style={{width:"100%"}} /></label>
