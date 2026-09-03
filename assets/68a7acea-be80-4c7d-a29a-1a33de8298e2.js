@@ -163,6 +163,44 @@ function ArticleEditor({ id }) {
 /* ---------- CATEGORY MANAGER ----------
    Moved to admin-nav.jsx (full CMS: icon/color/visibility/lock/drag-reorder). */
 
+/* ---------- HERO TILE CROPPER ---------- */
+function TileCropper({ tile, index, onApply, onClose }) {
+  const [v, setV] = useState({ x: tile.x, y: tile.y, z: tile.z });
+  const drag = useRef(null);
+  const start = (e) => { drag.current = { px: e.clientX, py: e.clientY, x: v.x, y: v.y, w: e.currentTarget.clientWidth }; e.currentTarget.setPointerCapture(e.pointerId); };
+  const move = (e) => {
+    const d = drag.current; if (!d) return;
+    const k = 100 / Math.max(1, d.w);
+    setV(s => ({ ...s, x: Math.min(100, Math.max(0, d.x - (e.clientX - d.px) * k)), y: Math.min(100, Math.max(0, d.y - (e.clientY - d.py) * k)) }));
+  };
+  const end = () => { drag.current = null; };
+  return (
+    <div className="scrim" style={{display:"grid",placeItems:"center",zIndex:80}} onClick={onClose}>
+      <div className="card" style={{width:"min(440px,92vw)",maxHeight:"90vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+        <h3>画像 {index + 1} をトリミング</h3>
+        <div className="hint" style={{marginBottom:12}}>プレビューをドラッグして位置を、スライダーで拡大率を調整します。表示は正方形に切り抜かれます。</div>
+        <div style={{width:"100%",aspectRatio:"1/1",overflow:"hidden",borderRadius:"var(--a-r-md,10px)",background:"var(--a-sink)",cursor:"grab",touchAction:"none",marginBottom:16}}
+          onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+          <img src={tile.u} alt="" draggable="false" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:v.x+"% "+v.y+"%",transform:"scale("+v.z+")",pointerEvents:"none"}} />
+        </div>
+        <label className="fld"><span>拡大率 <em>（{v.z.toFixed(2)}倍）</em></span>
+          <input type="range" min="1" max="2.5" step="0.05" value={v.z} onChange={e=>setV(s=>({...s,z:Number(e.target.value)}))} style={{width:"100%"}} /></label>
+        <div className="row2">
+          <label className="fld"><span>左右の位置 <em>（{Math.round(v.x)}%）</em></span>
+            <input type="range" min="0" max="100" value={v.x} onChange={e=>setV(s=>({...s,x:Number(e.target.value)}))} style={{width:"100%"}} /></label>
+          <label className="fld"><span>上下の位置 <em>（{Math.round(v.y)}%）</em></span>
+            <input type="range" min="0" max="100" value={v.y} onChange={e=>setV(s=>({...s,y:Number(e.target.value)}))} style={{width:"100%"}} /></label>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button className="b b--p" onClick={()=>{onApply({u:tile.u,...v});onClose();}}>この範囲で決定</button>
+          <button className="b b--g" onClick={()=>setV({x:50,y:50,z:1})}>リセット</button>
+          <button className="b b--g" onClick={onClose}>キャンセル</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- TOP PAGE MANAGER ---------- */
 const TOP_TEXT_KEYS = [
   "top.ranking.title", "top.ranking.eyebrow",
@@ -205,8 +243,11 @@ function TopManager() {
   const heroRef=useRef();
   const tileRefs=[useRef(),useRef(),useRef(),useRef()];
   const tiles=Array.isArray(hero.images)?hero.images:[null,null,null,null];
-  const setTile=(i,files)=>{ const file=[...files].find(f=>f.type.startsWith("image/")); if(!file)return; const r=new FileReader(); r.onload=()=>window.compress(r.result,(c)=>{ const n=[0,1,2,3].map(x=>x===i?c:(tiles[x]||null)); fh("images",n); },1400); r.readAsDataURL(file); };
-  const clearTile=(i)=>fh("images",[0,1,2,3].map(x=>x===i?null:(tiles[x]||null)));
+  const tv=(t)=>(t&&typeof t==="object")?{u:t.u||null,x:t.x??50,y:t.y??50,z:t.z??1}:{u:t||null,x:50,y:50,z:1};
+  const writeTiles=(i,val)=>fh("images",[0,1,2,3].map(x=>x===i?val:(tiles[x]||null)));
+  const setTile=(i,files)=>{ const file=[...files].find(f=>f.type.startsWith("image/")); if(!file)return; const r=new FileReader(); r.onload=()=>window.compress(r.result,(c)=>writeTiles(i,{u:c,x:50,y:50,z:1}),1400); r.readAsDataURL(file); };
+  const clearTile=(i)=>writeTiles(i,null);
+  const [cropIdx,setCropIdx]=useState(-1);
   const products = CS.publishedProducts();
   const setHeroImg=(files)=>{ const file=[...files].find(f=>f.type.startsWith("image/")); if(!file)return; const r=new FileReader(); r.onload=()=>window.compress(r.result,(c)=>fh("image",c),1600); r.readAsDataURL(file); };
   const save=()=>{ CS.saveSite(s); ctoast("TOPページを更新しました"); };
@@ -257,17 +298,22 @@ function TopManager() {
             </label>
             <div style={{marginTop:22}}>
               <span className="fld__lbl" style={{display:"block",fontSize:12.5,fontWeight:700,marginBottom:4}}>TOP画像（4枚・2×2の正方形）<em style={{fontWeight:400,color:"var(--a-muted)"}}>（中央レイアウトで表示）</em></span>
-              <div className="hint" style={{marginBottom:10}}>クリックして各枠の画像を差し替えられます。ラベル文言は「サイトコンテンツ管理 → TOPページ」で変更できます。</div>
+              <div className="hint" style={{marginBottom:10}}>クリックして各枠の画像を差し替えられます。「トリミング」で拡大率と位置を調整できます。ラベル文言は「サイトコンテンツ管理 → TOPページ」で変更できます。</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,maxWidth:360}}>
-                {[0,1,2,3].map(i=>(
+                {[0,1,2,3].map(i=>{
+                  const t=tv(tiles[i]);
+                  return (
                   <div key={i}>
-                    <div className="img-cell" style={{aspectRatio:"1/1",cursor:"pointer"}} onClick={()=>tileRefs[i].current.click()}>
-                      {tiles[i] ? <img src={tiles[i]} alt="" /> : <div style={{width:"100%",height:"100%",display:"grid",placeItems:"center",background:"var(--a-sink)",color:"var(--a-muted)",fontSize:12}}>画像 {i+1}</div>}
+                    <div className="img-cell" style={{aspectRatio:"1/1",cursor:"pointer",overflow:"hidden"}} onClick={()=>tileRefs[i].current.click()}>
+                      {t.u ? <img src={t.u} alt="" style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:t.x+"% "+t.y+"%",transform:"scale("+t.z+")"}} /> : <div style={{width:"100%",height:"100%",display:"grid",placeItems:"center",background:"var(--a-sink)",color:"var(--a-muted)",fontSize:12}}>画像 {i+1}</div>}
                     </div>
                     <input ref={tileRefs[i]} type="file" accept="image/*" hidden onChange={e=>setTile(i,e.target.files)} />
-                    {tiles[i] && <button className="b b--g b--sm b--block" style={{marginTop:6}} onClick={()=>clearTile(i)}>削除</button>}
-                  </div>
-                ))}
+                    {t.u && <div style={{display:"flex",gap:6,marginTop:6}}>
+                      <button className="b b--g b--sm" style={{flex:1}} onClick={()=>setCropIdx(i)}>トリミング</button>
+                      <button className="b b--g b--sm" onClick={()=>clearTile(i)}>削除</button>
+                    </div>}
+                  </div>);
+                })}
               </div>
             </div>
           </div>
@@ -309,6 +355,7 @@ function TopManager() {
           </div>
         </div>
       </div>
+      {cropIdx >= 0 && <TileCropper tile={tv(tiles[cropIdx])} index={cropIdx} onApply={val=>writeTiles(cropIdx,val)} onClose={()=>setCropIdx(-1)} />}
     </div>
   );
 }
