@@ -334,6 +334,7 @@
   const sortByOrder = (a, b) => (a.order ?? 999) - (b.order ?? 999);
 
   const LBStore = {
+    GRAD, GRAD_KEYS,
     normalizeProduct,
     get state() { return state; },
     get ready() { return state.ready; },
