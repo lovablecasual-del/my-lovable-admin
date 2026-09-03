@@ -374,7 +374,7 @@ function Settings({ onLogout }) {
   const saveLogo=()=>{ CS.saveSite({logo:logo.logo,logoText:logo.logoText,logoHeight:logo.logoHeight}); ctoast("ロゴを保存しました"); };
 
   const saveSeo=()=>{ CS.saveSite({seo}); ctoast("SEO設定を保存しました"); };
-  const saveAcc=()=>{ if(!acc.email.trim()){ctoast("メールを入力してください");return;} CS.updateAdmin(acc.email, acc.password||admin.password); ctoast("アカウントを更新しました"); };
+  const saveAcc=async ()=>{ if(!acc.email.trim()){ctoast("メールを入力してください");return;} const ok = await CS.updateAdmin(acc.email, acc.password||undefined); ctoast(ok?"アカウントを更新しました":"更新に失敗しました"); };
   const exportJSON=()=>{ const blob=new Blob([CS.exportJSON()],{type:"application/json"}); const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download="lovable-cms-backup.json"; a.click(); URL.revokeObjectURL(u); };
   const importJSON=(files)=>{ const file=files[0]; if(!file)return; const r=new FileReader(); r.onload=()=>{ try{ CS.importJSON(r.result); ctoast("インポートしました"); }catch(e){ ctoast("読み込みに失敗しました"); } }; r.readAsText(file); };
 

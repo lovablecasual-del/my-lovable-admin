@@ -44,12 +44,16 @@ function Thumb({ p, className }) {
 
 /* ---------- LOGIN ---------- */
 function Login({ onLogin }) {
-  const [email, setEmail] = useState("admin@lovable.jp");
+  const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
-  const submit = (e) => {
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
     e.preventDefault();
-    if (S.checkLogin(email, pw)) {
+    setBusy(true);
+    const ok = await S.checkLogin(email, pw);
+    setBusy(false);
+    if (ok) {
       sessionStorage.setItem(AUTH_KEY, "1");
       localStorage.setItem(AUTH_KEY, email);
       onLogin();
@@ -69,11 +73,8 @@ function Login({ onLogin }) {
           <label>パスワード</label>
           <input className="in" type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
         </div>
-        <button className="b b--p b--block" style={{marginTop:8,padding:"13px"}}>ログイン</button>
-        <div className="login__hint">
-          デモ用ログイン<br/>
-          <code>admin@lovable.jp</code> / <code>lovable</code>
-        </div>
+        <button className="b b--p b--block" style={{marginTop:8,padding:"13px"}} disabled={busy}>{busy?"ログイン中…":"ログイン"}</button>
+
       </form>
     </div>
   );
