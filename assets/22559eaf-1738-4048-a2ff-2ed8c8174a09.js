@@ -122,6 +122,22 @@ function Repeater({ items, onChange, placeholder }) {
   );
 }
 
+/* ---------- star rating picker (いっくん自身の評価など) ---------- */
+function StarPickerInput({ value, onChange, max = 5 }) {
+  const v = Math.round(Number(value) || 0);
+  return (
+    <div className="starpick" role="radiogroup" aria-label="評価">
+      {Array.from({ length: max }, (_, i) => i + 1).map(n => (
+        <button type="button" key={n}
+          className={"starpick__b" + (n <= v ? " is-on" : "")}
+          onClick={() => onChange(n === v ? 0 : n)}
+          aria-pressed={n <= v} aria-label={n + "つ星"}>★</button>
+      ))}
+      {v > 0 && <span className="starpick__clear" onClick={() => onChange(0)}>クリア</span>}
+    </div>
+  );
+}
+
 /* ---------- reviews (口コミ) editor ---------- */
 function ReviewsEditor({ reviews, onChange }) {
   const set = (i, k, v) => { const n = reviews.map((r, x) => x === i ? { ...r, [k]: v } : r); onChange(n); };
@@ -928,6 +944,7 @@ function ProductEditor({ id }) {
   const f = (k,v) => setP(s=>({...s,[k]:v}));
   const fl = (k,v) => setP(s=>({...s,links:{...s.links,[k]:v}}));
   const fs = (k,v) => setP(s=>({...s,social:{...s.social,[k]:v}}));
+  const fsp = (k,v) => setP(s=>({...s,spec:{...(s.spec||{}),[k]:v}}));
   const cat = cats.find(c=>c.key===p.cat);
 
   const [imp, setImp] = useState({ url:"", loading:false, msg:"", ok:false });
@@ -1155,6 +1172,10 @@ function ProductEditor({ id }) {
 
           <div className="card">
             <h3><span className="num">5</span>いっくんのおすすめポイント</h3>
+            <label className="fld"><span>ひとこと <em>（このセクションの上部に表示・任意）</em></span>
+              <input className="in" value={(p.spec&&p.spec.ikkunComment)||""} onChange={e=>fsp("ikkunComment",e.target.value)} placeholder="例）本当に毎日使ってるお気に入りです" /></label>
+            <label className="fld"><span>自分の評価 <em>（任意・右の「価格・評価」のレビュー評価とは別物）</em></span>
+              <StarPickerInput value={(p.spec&&p.spec.ikkunRating)||0} onChange={v=>fsp("ikkunRating",v)} /></label>
             <Repeater items={p.points} onChange={v=>f("points",v)} placeholder="例）とろみ素材で骨格ウェーブの上半身をすっきり" />
           </div>
 
@@ -1267,4 +1288,4 @@ function MediaLibrary() {
   );
 }
 
-Object.assign(window, { ProductList, ProductEditor, MediaLibrary, Repeater, TagsInput, ImageManager, compress });
+Object.assign(window, { ProductList, ProductEditor, MediaLibrary, Repeater, TagsInput, ImageManager, StarPickerInput, compress });
