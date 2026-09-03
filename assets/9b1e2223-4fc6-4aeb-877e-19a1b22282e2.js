@@ -228,8 +228,17 @@
     let categories = (ca.data || []).map(DB2C);
     let navItems = (na.data || []).map(DB2N);
 
+    // Seeding writes require an authenticated session (RLS blocks anon inserts).
+    // Anonymous storefront visitors just read whatever is already in the DB;
+    // the first authenticated admin login performs the one-time seed instead.
+    let isAuthed = false;
+    try {
+      const { data: sessionData } = await sb.auth.getSession();
+      isAuthed = !!(sessionData && sessionData.session);
+    } catch (_) {}
+
     // brand-new database: bootstrap once from data.js, then never again
-    if (!pr.error && products.length === 0 && Array.isArray(SEED.PRODUCTS) && SEED.PRODUCTS.length) {
+    if (isAuthed && !pr.error && products.length === 0 && Array.isArray(SEED.PRODUCTS) && SEED.PRODUCTS.length) {
       const seedProducts = SEED.PRODUCTS.map((p, i) => normalizeProduct({
         status: "published", order: i, publishedAt: new Date(Date.now() - (i * 86400000)).toISOString(),
         social: {}, tags: p.tags || (p.tag ? [p.tag] : []), ...p,
@@ -238,13 +247,13 @@
       if (!error) products = seedProducts;
       else try { console.error("[LB store] product seed insert failed", error); } catch (_) {}
     }
-    if (!ca.error && categories.length === 0 && Array.isArray(SEED.CATEGORIES) && SEED.CATEGORIES.length) {
+    if (isAuthed && !ca.error && categories.length === 0 && Array.isArray(SEED.CATEGORIES) && SEED.CATEGORIES.length) {
       const seedCats = SEED.CATEGORIES.map((c, i) => normalizeCategory({ ...c, isSystem: true, locked: true }, i));
       const { error } = await sb.from("categories").insert(seedCats.map(C2DB));
       if (!error) categories = seedCats;
       else try { console.error("[LB store] category seed insert failed", error); } catch (_) {}
     }
-    if (!na.error && navItems.length === 0) {
+    if (isAuthed && !na.error && navItems.length === 0) {
       const seedNav = NAV_SEED.map((n, i) => normalizeNavItem(n, i));
       const { error } = await sb.from("nav_items").insert(seedNav.map(N2DB));
       if (!error) navItems = seedNav;
