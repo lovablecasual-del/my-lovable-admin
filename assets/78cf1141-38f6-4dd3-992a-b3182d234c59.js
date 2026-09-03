@@ -222,13 +222,22 @@ const PAGE_TITLES = {
 /* ---------- shell ---------- */
 function Admin() {
   useStore();
-  const [authed, setAuthed] = useState(() => sessionStorage.getItem(AUTH_KEY) === "1");
+  const [authed, setAuthed] = useState(null); // null = checking session, true/false = known
   const route = useAdminRoute();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  useEffect(() => {
+    let alive = true;
+    const sb = window.LBSupabase;
+    sb.auth.getSession().then(({ data }) => { if (alive) setAuthed(!!(data && data.session)); });
+    const { data: sub } = sb.auth.onAuthStateChange((_event, session) => { if (alive) setAuthed(!!session); });
+    return () => { alive = false; sub && sub.subscription && sub.subscription.unsubscribe(); };
+  }, []);
+
+  if (authed === null) return <div style={{padding:"80px 20px",textAlign:"center",color:"#999",fontSize:14}}>読み込み中…</div>;
   if (!authed) return <><Login onLogin={()=>setAuthed(true)} /><Toaster /></>;
 
-  const logout = () => { sessionStorage.removeItem(AUTH_KEY); setAuthed(false); go("dashboard"); };
+  const logout = () => { S.signOut(); sessionStorage.removeItem(AUTH_KEY); setAuthed(false); go("dashboard"); };
 
   let body, title = PAGE_TITLES[route.page] || "";
   if (route.page === "dashboard") body = <Dashboard />;
