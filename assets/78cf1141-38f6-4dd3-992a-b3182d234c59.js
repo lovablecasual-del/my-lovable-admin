@@ -134,6 +134,8 @@ function Sidebar({ route, open, onClose }) {
           <Item id="articles" icon={I.doc} label="記事・特集" count={counts.articles} />
           <Item id="top" icon={I.home} label="TOPページ" />
           <Item id="content" icon={I.doc} label="サイトコンテンツ管理" />
+          <div className="side__sec">分析</div>
+          <Item id="insights" icon={I.eye} label="インサイト" />
           <div className="side__sec">システム</div>
           <Item id="settings" icon={I.cog} label="設定・SEO" />
         </nav>
@@ -213,10 +215,154 @@ function Dashboard() {
   );
 }
 
+/* ---------- INSIGHTS ---------- */
+const INSIGHT_RANGES = [
+  { key: 7, label: "過去7日間" },
+  { key: 30, label: "過去30日間" },
+  { key: 90, label: "過去90日間" },
+];
+
+function fmtDuration(ms) {
+  if (!ms || ms < 0) return "0:00";
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60), s2 = totalSec % 60;
+  return m + ":" + String(s2).padStart(2, "0");
+}
+
+function pathLabel(path) {
+  if (!path || path === "/") return "TOPページ";
+  const parts = path.split("/").filter(Boolean);
+  if (parts[0] === "product") {
+    const p = S.allProducts().find(x => String(x.id) === parts[1]);
+    return p ? "商品: " + p.name : "商品ページ（" + (parts[1]||"不明") + "）";
+  }
+  if (parts[0] === "category") {
+    const c = S.allCategories().find(x => x.key === parts[1]);
+    return c ? "カテゴリー: " + c.en : "カテゴリー（" + (parts[1]||"不明") + "）";
+  }
+  if (parts[0] === "all") return "すべての商品";
+  if (parts[0] === "saved") return "お気に入り";
+  return path;
+}
+
+function TrendBars({ data }) {
+  const max = Math.max(1, ...data.map(d => d.count));
+  const labelEvery = Math.max(1, Math.ceil(data.length / 8));
+  return (
+    <div style={{display:"flex",alignItems:"flex-end",gap:2,height:150,padding:"8px 4px 0",overflow:"hidden"}}>
+      {data.map((d, i) => (
+        <div key={d.date} style={{flex:1,minWidth:2,display:"flex",flexDirection:"column",alignItems:"center",gap:6}} title={d.date+"："+d.count+"件"}>
+          <div style={{width:"100%",height:Math.max(2, Math.round((d.count/max)*112)),background:"var(--a-brand)",borderRadius:"3px 3px 0 0",opacity:0.85}}></div>
+          <div style={{fontSize:9,color:"var(--a-muted)",whiteSpace:"nowrap"}}>{i % labelEvery === 0 ? d.date.slice(5) : ""}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Insights() {
+  const [range, setRange] = useState(30);
+  const [state, setState] = useState({ loading: true, error: null, data: null });
+
+  useEffect(() => {
+    let alive = true;
+    setState(s => ({ ...s, loading: true, error: null }));
+    const sb = window.LBSupabase;
+    const since = new Date(Date.now() - range * 86400000).toISOString();
+    Promise.all([
+      sb.from("analytics_pageviews").select("path, created_at").gte("created_at", since).limit(20000),
+      sb.from("analytics_sessions").select("id, first_seen, last_seen").gte("first_seen", since).limit(20000),
+    ]).then(([pvRes, sessRes]) => {
+      if (!alive) return;
+      if (pvRes.error || sessRes.error) { setState({ loading: false, error: (pvRes.error || sessRes.error), data: null }); return; }
+      setState({ loading: false, error: null, data: { pv: pvRes.data || [], sessions: sessRes.data || [] } });
+    }).catch(err => { if (alive) setState({ loading: false, error: err, data: null }); });
+    return () => { alive = false; };
+  }, [range]);
+
+  let body;
+  if (state.loading) {
+    body = <div style={{padding:"60px 20px",textAlign:"center",color:"var(--a-muted)"}}>読み込み中…</div>;
+  } else if (state.error) {
+    body = (
+      <div className="panel" style={{padding:20}}>
+        <div className="hint" style={{marginBottom:8}}>データを取得できませんでした。集計用テーブルが未作成の可能性があります（セットアップ用SQLの実行状況をご確認ください）。</div>
+        <div style={{fontSize:12,color:"var(--a-muted)",fontFamily:"monospace"}}>{String((state.error && state.error.message) || state.error)}</div>
+      </div>
+    );
+  } else {
+    const { pv, sessions } = state.data;
+    const totalPV = pv.length;
+    const totalVisits = sessions.length;
+    const engaged = sessions.filter(s => new Date(s.last_seen) > new Date(s.first_seen));
+    const avgDurationMs = engaged.length ? engaged.reduce((sum, s) => sum + (new Date(s.last_seen) - new Date(s.first_seen)), 0) / engaged.length : 0;
+    const pvPerVisit = totalVisits ? (totalPV / totalVisits) : 0;
+
+    const dayMap = {};
+    for (let i = range - 1; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10); dayMap[d] = 0; }
+    pv.forEach(r => { const d = (r.created_at||"").slice(0, 10); if (d in dayMap) dayMap[d]++; });
+    const trend = Object.keys(dayMap).sort().map(d => ({ date: d, count: dayMap[d] }));
+
+    const pathCounts = {};
+    pv.forEach(r => { pathCounts[r.path] = (pathCounts[r.path] || 0) + 1; });
+    const topPaths = Object.entries(pathCounts).sort((a,b)=>b[1]-a[1]).slice(0, 10);
+
+    const Stat = ({ label, num, foot }) => (
+      <div className="stat">
+        <div className="stat__label">{label}</div>
+        <div className="stat__num">{num}</div>
+        {foot && <div className="stat__foot">{foot}</div>}
+      </div>
+    );
+
+    body = (
+      <>
+        <div className="stats">
+          <Stat label="訪問数（セッション）" num={totalVisits.toLocaleString()} foot={`直近${range}日間`} />
+          <Stat label="ページビュー数" num={totalPV.toLocaleString()} foot={`1訪問あたり平均 ${pvPerVisit.toFixed(1)} ページ`} />
+          <Stat label="平均滞在時間" num={fmtDuration(avgDurationMs)} foot={`複数ページ閲覧セッションの平均（${engaged.length}件）`} />
+          <Stat label="直帰セッション数" num={(totalVisits - engaged.length).toLocaleString()} foot="1ページのみ閲覧" />
+        </div>
+        <div className="panel" style={{marginTop:20}}>
+          <div className="panel__head"><h3>ページビューの推移</h3></div>
+          <div className="panel__body" style={{padding:"4px 16px 16px"}}>
+            {trend.length ? <TrendBars data={trend} /> : <div className="empty-state">データがありません</div>}
+          </div>
+        </div>
+        <div className="panel" style={{marginTop:20}}>
+          <div className="panel__head"><h3>よく見られているページ・商品</h3></div>
+          <div className="tbl-wrap">
+            <table className="tbl">
+              <thead><tr><th>ページ</th><th style={{textAlign:"right"}}>閲覧数</th></tr></thead>
+              <tbody>
+                {topPaths.map(([path, count]) => (
+                  <tr key={path}><td>{pathLabel(path)}</td><td style={{textAlign:"right"}}>{count.toLocaleString()}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            {!topPaths.length && <div className="empty-state">データがありません</div>}
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div className="content">
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {INSIGHT_RANGES.map(r => (
+          <button key={r.key} className={"b b--sm " + (range===r.key ? "b--p" : "b--g")} onClick={()=>setRange(r.key)}>{r.label}</button>
+        ))}
+      </div>
+      {body}
+    </div>
+  );
+}
+
 const PAGE_TITLES = {
   dashboard:"ダッシュボード", products:"商品管理", categories:"カテゴリー管理",
   navigation:"ナビゲーション管理",
-  media:"メディアライブラリ", articles:"記事・特集", top:"TOPページ管理", content:"サイトコンテンツ管理", settings:"設定・SEO",
+  media:"メディアライブラリ", articles:"記事・特集", top:"TOPページ管理", content:"サイトコンテンツ管理", insights:"インサイト", settings:"設定・SEO",
 };
 
 /* ---------- shell ---------- */
@@ -250,6 +396,7 @@ function Admin() {
   else if (route.page === "articles") body = <ArticleList />;
   else if (route.page === "top") body = <TopManager />;
   else if (route.page === "content") body = <SiteContentManager />;
+  else if (route.page === "insights") body = <Insights />;
   else if (route.page === "settings") body = <Settings onLogout={logout} />;
   else body = <Dashboard />;
 
