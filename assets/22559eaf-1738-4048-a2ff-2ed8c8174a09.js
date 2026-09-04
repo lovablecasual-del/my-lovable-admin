@@ -205,6 +205,10 @@ function ImageManager({ imgs, onChange }) {
   const [url, setUrl] = useState("");
   const [cleaning, setCleaning] = useState(false);
   const fileRef = useRef();
+  // drag-to-reorder
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
+  const moveTo = (from, to) => { const n=[...imgs]; const [m]=n.splice(from,1); n.splice(to,0,m); onChange(n); };
 
   const readFiles = (files) => {
     const arr = [...files].filter(f=>f.type.startsWith("image/"));
@@ -238,14 +242,27 @@ function ImageManager({ imgs, onChange }) {
           {cleaning?"確認中…":"🧹 アイコン画像を自動除去"}
         </button>
       )}
+      {(imgs||[]).length>1 && (
+        <div style={{fontSize:12,color:"var(--a-muted)",marginTop:14,marginBottom:-4}}>ドラッグして並び替え、またはボタンで移動できます</div>
+      )}
       {(imgs||[]).length>0 && (
         <div className="img-grid">
           {imgs.map((src,i)=>(
-            <div className="img-cell" key={i}>
-              <img src={src} alt="" />
+            <div
+              className={"img-cell"+(dragIdx===i?" img-cell--drag":"")+(overIdx===i&&dragIdx!==null&&dragIdx!==i?" img-cell--over":"")}
+              key={src+i}
+              draggable
+              onDragStart={()=>setDragIdx(i)}
+              onDragOver={e=>{ e.preventDefault(); if(overIdx!==i) setOverIdx(i); }}
+              onDragLeave={()=>setOverIdx(o=>o===i?null:o)}
+              onDrop={e=>{ e.preventDefault(); if(dragIdx!==null && dragIdx!==i) moveTo(dragIdx,i); setDragIdx(null); setOverIdx(null); }}
+              onDragEnd={()=>{ setDragIdx(null); setOverIdx(null); }}>
+              <img src={src} alt="" draggable={false} />
               {i===0 && <span className="img-cell__main">サムネイル</span>}
               <div className="img-cell__bar">
-                {i!==0 && <button className="img-cell__b" title="サムネイルにする" onClick={()=>{ const n=[...imgs]; n.splice(i,1); n.unshift(src); onChange(n); }}>{React.cloneElement(PI.up,PF)}</button>}
+                {i!==0 && <button className="img-cell__b" title="左に移動" onClick={()=>moveTo(i,i-1)}>‹</button>}
+                {i!==0 && <button className="img-cell__b" title="サムネイルにする" onClick={()=>moveTo(i,0)}>{React.cloneElement(PI.up,PF)}</button>}
+                {i!==imgs.length-1 && <button className="img-cell__b" title="右に移動" onClick={()=>moveTo(i,i+1)}>›</button>}
                 <button className="img-cell__b" title="削除" onClick={()=>onChange(imgs.filter((_,x)=>x!==i))}>{React.cloneElement(PI.trash,PF)}</button>
               </div>
             </div>

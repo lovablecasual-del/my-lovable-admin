@@ -4340,12 +4340,15 @@ label.fld em{color:var(--a-muted);font-weight:400;font-style:normal;}
 .dz svg{width:34px;height:34px;margin-bottom:10px;opacity:.6;}
 .dz b{color:var(--a-brand);}
 .img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;margin-top:14px;}
-.img-cell{position:relative;border-radius:var(--a-r);overflow:hidden;border:1px solid var(--a-line);aspect-ratio:1;background:var(--a-line-2);}
+.img-cell{position:relative;border-radius:var(--a-r);overflow:hidden;border:1px solid var(--a-line);aspect-ratio:1;background:var(--a-line-2);cursor:grab;transition:opacity .15s,outline-color .15s;}
+.img-cell:active{cursor:grabbing;}
+.img-cell--drag{opacity:.35;}
+.img-cell--over{outline:2px solid var(--a-brand);outline-offset:-2px;}
 .img-cell img{width:100%;height:100%;object-fit:cover;}
-.img-cell__bar{position:absolute;top:6px;right:6px;display:flex;gap:5px;opacity:0;transition:opacity .2s;}
+.img-cell__bar{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .2s;}
 .img-cell:hover .img-cell__bar{opacity:1;}
-.img-cell__b{width:26px;height:26px;border-radius:6px;background:rgba(0,0,0,.6);color:#fff;display:grid;place-items:center;backdrop-filter:blur(4px);}
-.img-cell__b svg{width:14px;height:14px;}
+.img-cell__b{width:22px;height:22px;border-radius:6px;background:rgba(0,0,0,.6);color:#fff;display:grid;place-items:center;backdrop-filter:blur(4px);font-size:13px;font-weight:700;line-height:1;}
+.img-cell__b svg{width:12px;height:12px;}
 .img-cell__main{position:absolute;left:6px;bottom:6px;font-size:9px;font-weight:700;background:var(--a-brand);color:#fff;padding:2px 7px;border-radius:100px;letter-spacing:.04em;}
 .img-url-row{display:flex;gap:8px;margin-top:10px;}
 
@@ -4428,7 +4431,7 @@ label.fld em{color:var(--a-muted);font-weight:400;font-style:normal;}
 <script src="assets/a80ba86c-8364-491a-ad7c-1cbe28967d81.js?v=1788423829"></script>
 <script src="assets/b8a46f73-0a1e-4761-9ef1-dda1f9ce30c3.js?v=1788423829"></script>
 <script type="text/babel" src="assets/78cf1141-38f6-4dd3-992a-b3182d234c59.js?v=1788432037"></script>
-<script type="text/babel" src="assets/22559eaf-1738-4048-a2ff-2ed8c8174a09.js?v=1788520709"></script>
+<script type="text/babel" src="assets/22559eaf-1738-4048-a2ff-2ed8c8174a09.js?v=1788521666"></script>
 <script type="text/babel" src="assets/68a7acea-be80-4c7d-a29a-1a33de8298e2.js?v=1788427417"></script>
 <script type="text/babel" src="assets/0682795f-3417-48ab-b301-72f3ce7377f8.js?v=1788423829"></script>
 <script type="text/babel" src="assets/19a1f8e3-e06f-4fc9-97bb-b721ded80da0.js?v=1788423829"></script>
