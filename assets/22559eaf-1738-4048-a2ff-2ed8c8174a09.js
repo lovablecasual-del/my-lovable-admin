@@ -20,6 +20,29 @@ function ProductList() {
     rows = rows.filter(p => (p.name+p.brand+(p.sub||"")+(p.tags||[]).join("")).toLowerCase().includes(k));
   }
 
+  // Drag-to-reorder writes a fresh 0..n-1 "order" to exactly the ids it's given
+  // (PS.reorderProducts), so it's only safe to enable when `rows` IS the full,
+  // unfiltered product list — reordering a filtered subset would silently
+  // collide its order numbers with the hidden products'.
+  const canReorder = cat === "all" && status === "all" && !q.trim();
+  const [dragId, setDragId] = useState(null);
+  const [overId, setOverId] = useState(null);
+  const moveRow = (id, dir) => {
+    const ids = rows.map(r=>r.id);
+    const i = ids.indexOf(id), j = i + dir;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    PS.reorderProducts(ids);
+  };
+  const onRowDrop = (targetId) => {
+    if (!dragId || dragId === targetId) { setDragId(null); setOverId(null); return; }
+    const ids = rows.map(r=>r.id);
+    const from = ids.indexOf(dragId), to = ids.indexOf(targetId);
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    PS.reorderProducts(ids);
+    setDragId(null); setOverId(null);
+  };
+
   const allSel = rows.length > 0 && sel.length === rows.length;
   const toggleAll = () => setSel(allSel ? [] : rows.map(r=>r.id));
   const toggle = (id) => setSel(s => s.includes(id) ? s.filter(x=>x!==id) : [...s,id]);
@@ -42,6 +65,10 @@ function ProductList() {
         <button className="b b--p" onClick={()=>pgo("products/new")}>{React.cloneElement(PI.plus,PF)} 商品を追加</button>
       </div>
 
+      {!canReorder && (
+        <p className="hint" style={{margin:"10px 2px 0"}}>並び替えは、検索・カテゴリー・状態の絞り込みをすべて解除した「すべて」表示のときだけ行えます。</p>
+      )}
+
       {sel.length > 0 && (
         <div className="bulkbar">
           <span>{sel.length}件を選択中</span>
@@ -58,6 +85,7 @@ function ProductList() {
         <table className="tbl">
           <thead>
             <tr>
+              <th style={{width:28}}></th>
               <th style={{width:40}}><input type="checkbox" className="chk" checked={allSel} onChange={toggleAll} /></th>
               <th>商品</th>
               <th className="tbl__hide">カテゴリー</th>
@@ -68,10 +96,20 @@ function ProductList() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(p => {
+            {rows.map((p, i) => {
               const linkN = p.links ? Object.values(p.links).filter(Boolean).length : 0;
               return (
-                <tr key={p.id}>
+                <tr key={p.id}
+                  className={(dragId===p.id?"is-dragging":"")+(overId===p.id&&dragId&&dragId!==p.id?" is-over":"")}
+                  onDragOver={canReorder?(e)=>{ e.preventDefault(); if(overId!==p.id) setOverId(p.id); }:undefined}
+                  onDragLeave={canReorder?()=>setOverId(o=>o===p.id?null:o):undefined}
+                  onDrop={canReorder?(e)=>{ e.preventDefault(); onRowDrop(p.id); }:undefined}>
+                  <td>
+                    {canReorder
+                      ? <span className="tbl__handle" title="ドラッグして並び替え" draggable
+                          onDragStart={()=>setDragId(p.id)} onDragEnd={()=>{ setDragId(null); setOverId(null); }}>⠿</span>
+                      : <span className="tbl__handle tbl__handle--off" title="絞り込みを解除すると並び替えできます">⠿</span>}
+                  </td>
                   <td><input type="checkbox" className="chk" checked={sel.includes(p.id)} onChange={()=>toggle(p.id)} /></td>
                   <td>
                     <div className="tbl__name">
@@ -88,6 +126,12 @@ function ProductList() {
                   <td><span className={"badge badge--dot " + ((p.status||"published")==="published"?"badge--pub":"badge--draft")}>{(p.status||"published")==="published"?"公開":"下書き"}</span></td>
                   <td>
                     <div className="tbl__act">
+                      {canReorder && (
+                        <span className="tbl__arrows">
+                          <button type="button" className="icon-b" disabled={i===0} title="上へ" onClick={()=>moveRow(p.id,-1)}>{React.cloneElement(PI.up,PF)}</button>
+                          <button type="button" className="icon-b" disabled={i===rows.length-1} title="下へ" style={{transform:"rotate(180deg)"}} onClick={()=>moveRow(p.id,1)}>{React.cloneElement(PI.up,PF)}</button>
+                        </span>
+                      )}
                       <button className="icon-b" title="編集" onClick={()=>pgo("products/"+p.id)}>{React.cloneElement(PI.edit,PF)}</button>
                       <button className="icon-b" title="複製" onClick={()=>{ PS.duplicateProduct(p.id); ptoast("複製しました"); }}>{React.cloneElement(PI.copy,PF)}</button>
                       <button className="icon-b icon-b--d" title="削除" onClick={()=>{ if(confirm("「"+p.name+"」を削除しますか？")){ PS.deleteProduct(p.id); ptoast("削除しました"); } }}>{React.cloneElement(PI.trash,PF)}</button>
