@@ -1139,6 +1139,8 @@ function ProductEditor({ id }) {
 
           <div className="card">
             <h3><span className="num">3</span>商品バッジ <em style={{fontWeight:400,color:"var(--a-muted)",fontSize:12}}>（カード・詳細に表示）</em></h3>
+            <label className="fld"><span>見出しバッジ <em>（任意・ランキングTOPの写真下に表示。空欄で非表示）</em></span>
+              <input className="in" value={p.badge||""} onChange={e=>f("badge",e.target.value)} placeholder="例）人気No.1 / いっくんイチオシ" /></label>
             <label className="badgeflag">
               <input type="checkbox" checked={!!p.repeatPurchase}
                 onChange={e=>f("repeatPurchase", e.target.checked)} />
