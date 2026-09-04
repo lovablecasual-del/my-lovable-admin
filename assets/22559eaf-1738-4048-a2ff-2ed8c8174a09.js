@@ -308,7 +308,11 @@ const PROVIDERS = [
     id: "qoo10", name: "Qoo10",
     match: (h) => /qoo10|gmkt|image-gmkt/.test(h),
     canonical: (u) => normalizeImportUrl(u, "qoo10"),
-    fetch: (u) => fetchPageHTML(u),
+    // Qoo10's page is JS-rendered and its raw HTML is behind proxies that are
+    // currently unreliable for this host (allorigins/codetabs time out, corsproxy
+    // now needs a paid key) — jina's reader consistently succeeds in under a
+    // second, so try it first and only fall back to the raw-HTML proxies.
+    fetch: (u) => fetchReviewHTML(u),
   },
   {
     id: "tiktok", name: "TikTok Shop",
@@ -361,7 +365,10 @@ function amazonCanonical(url) {
 }
 function cleanTitle(t) {
   let s = (t || "").split(/[|｜]/)[0]
-    .replace(/【[^】]*】/g, "")
+    // strip bracket-wrapped tags entirely (both full-width 【】 and half-width []),
+    // e.g. "[Qoo10] " / "【送料無料】" — removing just the keyword inside left an
+    // empty "[]" behind for jina-rendered titles like "[Qoo10] 商品名..."
+    .replace(/[【\[][^】\]]*[】\]]/g, "")
     .replace(/Amazon\.co\.jp|Amazon|楽天市場|Qoo10|公式(?:ショップ|ストア)?|送料無料/gi, "")
     .replace(/\s+/g, " ")
     .replace(/^[\s:：|｜\-―、,]+/, "")
