@@ -110,6 +110,8 @@
     { key: "footer.copyright", page: "footer", label: "コピーライト表記", type: "text", default: "© 2026 LOVABLE — Edit your everyday." },
     { key: "footer.adminLinkLabel", page: "footer", label: "管理画面リンク文言", type: "text", default: "管理画面" },
     { key: "footer.disclaimer", page: "footer", label: "アフィリエイト開示文", type: "textarea", default: "本サイトはアフィリエイトプログラムを利用しています。リンクから各ストア（TikTok Shop・Amazon・楽天市場・Qoo10）へ遷移します。価格・在庫は遷移先をご確認ください。" },
+    { key: "footer.sns.instagram", page: "footer", label: "Instagram プロフィールURL（空欄で非表示）", type: "text", default: "" },
+    { key: "footer.sns.tiktok", page: "footer", label: "TikTok プロフィールURL（空欄で非表示）", type: "text", default: "" },
 
     // ---- Common buttons (reused across pages) ----
     { key: "buttons.back", page: "buttons", label: "共通ボタン：戻る", type: "text", default: "戻る" },
